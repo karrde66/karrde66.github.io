@@ -3,7 +3,7 @@ import feedparser
 from datetime import datetime
 import smtplib
 from email.message import EmailMessage
-
+ 
 # === Daily Digest Generation ===
 today = datetime.now().strftime("%A, %B %d, %Y")
 

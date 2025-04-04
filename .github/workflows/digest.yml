@@ -2,23 +2,35 @@ name: Daily Digest Generator
 
 on:
   schedule:
-    - cron: '0 7 * * *'  # Runs every day at 7:00 AM UTC
-  workflow_dispatch:     # Allows manual triggering
+    - cron: '0 13 * * *'  # Runs daily at 6 AM PST / 1 PM UTC
+  workflow_dispatch:      # Allow manual trigger
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-    - name: Install dependencies
-      run: pip install feedparser
+      - name: Install dependencies
+        run: pip install feedparser
 
-    - name: Run digest script
-      run: python digest_generator.py
+      - name: Run Digest Script
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: python digest_generator.py
+
+      - name: Commit & Push index.html
+        run: |
+          git config --global user.name "karrde66"
+          git config --global user.email "cmorrison.66@gmail.com"
+          git add index.html
+          git commit -m "🔄 Daily update"
+          git push

@@ -3,7 +3,7 @@ import feedparser
 from datetime import datetime
 import smtplib
 from email.message import EmailMessage
- import os
+import os
 
 # === Daily Digest Generation ===
 today = datetime.now().strftime("%A, %B %d, %Y")
@@ -44,7 +44,9 @@ print("✅ index.html updated.")
 sender_email = "cmorrison.66@gmail.com"
 receiver_emails = ["cmorrison.66@gmail.com", "Gerretteatta@gmail.com"]
 
-app_password = os.getenv("EMAIL_PASSWORD")
+app_password = os.getenv("EMAIL_PASS")
+sender_email = os.getenv("EMAIL_USER")
+
 
 msg = EmailMessage()
 msg["Subject"] = f"🗞️ Your Daily Digest – {today}"

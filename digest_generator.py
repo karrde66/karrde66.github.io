@@ -42,7 +42,7 @@ print("✅ index.html updated.")
 # === Send Email ===
 sender_email = "cmorrison.66@gmail.com"
 receiver_emails = ["cmorrison.66@gmail.com", "Gerretteatta@gmail.com"]
-app_password = "olxklmwmundtngit"
+app_password = "olxk lmwm undt ngit"
 
 msg = EmailMessage()
 msg["Subject"] = f"🗞️ Your Daily Digest – {today}"

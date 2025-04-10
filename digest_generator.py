@@ -84,9 +84,9 @@ canucks_news = fetch_feed_titles(canucks_feed, 10)
 # ============================
 # Output to File
 # ============================
-downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
 today_str = datetime.now().strftime("%Y-%m-%d")
-output_filename = os.path.join(downloads_folder, f"DailyDigest_{today_str}.txt")
+output_filename = f"DailyDigest_{today_str}.txt"
+
 
 with open(output_filename, "w", encoding="utf-8") as f:
     f.write("=== DAILY DIGEST ===\n")

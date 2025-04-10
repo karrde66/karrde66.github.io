@@ -1,10 +1,13 @@
 
 import feedparser
-import os
-import random
-from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime
+import smtplib
+from email.message import EmailMessage
+import os
+from pathlib import Path
+
 
 def fetch_feed_titles(feed_url, limit):
     feed = feedparser.parse(feed_url)

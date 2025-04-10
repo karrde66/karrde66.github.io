@@ -6,7 +6,7 @@ import smtplib
 from email.message import EmailMessage
 import os
 from pathlib import Path
-import yfinance as yf
+import json
 
 # ----------------------------
 # Helper Functions
@@ -33,7 +33,7 @@ def fetch_feed_items(feed_url, limit):
 
 def fetch_weather(city):
     try:
-        # &m returns metric units (Celsius) and conditions
+        # &m returns metric units (Celsius) and includes condition details
         url = f"https://wttr.in/{city}?format=%C+%t&m"
         response = requests.get(url, timeout=10)
         return f"{city.capitalize()}: {response.text.strip()}"
@@ -58,19 +58,27 @@ def filter_by_keyword(titles, keyword):
     return [title for title in titles if keyword.lower() in title.lower()]
 
 def fetch_market_quotes():
-    symbols = ["^IXIC", "QQQ", "VTI", "BTC-USD", "XRP-USD"]
-    quotes = {}
-    for symbol in symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            # Use 'regularMarketPrice' from the ticker info
-            price = ticker.info.get("regularMarketPrice")
-            quotes[symbol] = price if price is not None else "N/A"
-        except Exception:
-            quotes[symbol] = "N/A"
-    return quotes
+    """
+    Fetch market quotes for Nasdaq (^IXIC), QQQ, VTI, Bitcoin (BTC-USD), and XRP (XRP-USD)
+    by directly querying Yahoo Finance's API endpoint.
+    """
+    url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=^IXIC,QQQ,VTI,BTC-USD,XRP-USD"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        data = response.json()
+        quotes = {}
+        for result in data.get("quoteResponse", {}).get("result", []):
+            symbol = result.get("symbol")
+            price = result.get("regularMarketPrice")
+            if symbol and price is not None:
+                quotes[symbol] = price
+        return quotes
+    except Exception:
+        return {}
 
 def fetch_daily_joke():
+    """Fetch a dad joke from icanhazdadjoke.com."""
     try:
         headers = {"Accept": "application/json"}
         response = requests.get("https://icanhazdadjoke.com/", headers=headers, timeout=10)
@@ -86,7 +94,7 @@ today = datetime.now().strftime("%A, %B %d, %Y")
 today_str = datetime.now().strftime("%Y-%m-%d")
 
 # ----------------------------
-# News Feeds Scraping (Top 5 for each section)
+# Scrape News Feeds (Top 5 for each section)
 # ----------------------------
 # Fox News Headlines
 fox_feeds = [
@@ -103,7 +111,7 @@ fox_headlines = list({title for url in fox_feeds for title in fetch_feed_titles(
 # Global News Canada
 canada_headlines = fetch_feed_titles("https://globalnews.ca/feed/", 5)
 
-# NYT World Headlines
+# World Headlines (NYT)
 world_headlines = fetch_feed_titles("https://rss.nytimes.com/services/xml/rss/nyt/World.xml", 5)
 
 # Wired Tech Headlines
@@ -132,24 +140,24 @@ cancer = fetch_horoscope("cancer")
 aquarius = fetch_horoscope("aquarius")
 
 # ----------------------------
-# Weather (selected cities)
+# Weather (for selected cities)
 # ----------------------------
 weather_cities = ["vancouver", "victoria", "terrace", "smithers", "hazelton"]
 weather_data = [fetch_weather(city) for city in weather_cities]
 
 # ----------------------------
-# Market Quotes (via yfinance)
+# Market Data (via direct Yahoo Finance query)
 # ----------------------------
 market_quotes = fetch_market_quotes()
 
 # ----------------------------
-# Daily Joke
+# Daily Joke (from icanhazdadjoke.com)
 # ----------------------------
 daily_joke = fetch_daily_joke()
 
 # ----------------------------
-# Build Digest Content in Desired Order:
-# Order: Weather, Daily Joke, Market Data, Horoscopes, Hockey Headlines (General & Canucks), then the rest.
+# Build Plain Text Digest (in desired order)
+# Order: Weather, Daily Joke, Market Data, Horoscopes, Hockey News, then the rest of the news.
 # ----------------------------
 plain_lines = [
     f"*{today}*\n",
@@ -176,9 +184,9 @@ html_parts = [
     "<h3>Daily Joke</h3><p>" + daily_joke + "</p>",
     "<h3>Market Data</h3><ul>" + "".join(f"<li>{symbol}: {price}</li>" for symbol, price in market_quotes.items()) + "</ul>",
     "<h3>Horoscopes</h3>" +
-      f"<p>Aries: {aries}</p>" +
-      f"<p><br>Cancer: {cancer}</p>" +
-      f"<p><br>Aquarius: {aquarius}</p>",
+       f"<p>Aries: {aries}</p>" +
+       f"<p><br>Cancer: {cancer}</p>" +
+       f"<p><br>Aquarius: {aquarius}</p>",
     "<h3>Hockey Headlines (General)</h3><ul>" + "".join(f"<li>{item['title']}</li>" for item in hockey_general_items) + "</ul>",
     "<h3>Canucks News</h3><ul>" + "".join(f"<li><a href='{item['link']}' target='_blank'>{item['title']}</a></li>" for item in canucks_items) + "</ul>",
     "<h3>Fox News Headlines</h3><ul>" + "".join(f"<li>{h}</li>" for h in fox_headlines) + "</ul>",
@@ -190,7 +198,7 @@ html_parts = [
 html_digest = "".join(html_parts)
 
 # ----------------------------
-# Save Plain Text Digest to File (for logging/backup)
+# Save Plain Text Digest to File (for backup/logging)
 # ----------------------------
 output_path = Path(f"DailyDigest_{today_str}.txt")
 with open(output_path, "w", encoding="utf-8") as f:

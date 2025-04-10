@@ -1,64 +1,130 @@
 
 import feedparser
-from datetime import datetime
-import smtplib
-from email.message import EmailMessage
 import os
+import random
+from datetime import datetime
 
-# === Daily Digest Generation ===
-today = datetime.now().strftime("%A, %B %d, %Y")
+def fetch_feed_titles(feed_url, limit):
+    feed = feedparser.parse(feed_url)
+    titles = []
+    for entry in feed.entries:
+        if 'title' in entry:
+            titles.append(entry.title.strip())
+        if len(titles) >= limit:
+            break
+    return titles
 
-# Placeholder headline section
-headlines = [
-    "1. Sample headline 1",
-    "2. Sample headline 2",
-    "3. Sample headline 3"
+# ============================
+# Section 1: Fox News Headlines (100 total)
+# ============================
+fox_feeds = [
+    "https://feeds.foxnews.com/foxnews/latest",
+    "https://feeds.foxnews.com/foxnews/politics",
+    "https://feeds.foxnews.com/foxnews/national",
+    "https://feeds.foxnews.com/foxnews/world",
+    "https://feeds.foxnews.com/foxnews/entertainment",
+    "https://feeds.foxnews.com/foxnews/scitech",
+    "https://feeds.foxnews.com/foxnews/health",
 ]
+fox_headlines = []
+seen = set()
+for url in fox_feeds:
+    titles = fetch_feed_titles(url, 100)
+    for title in titles:
+        if title not in seen:
+            seen.add(title)
+            fox_headlines.append(title)
+fox_headlines = fox_headlines[:100]
 
-# === HTML Content ===
-html_content = f"""
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Daily Digest – {today}</title>
-</head>
-<body style="font-family: Arial, sans-serif; padding: 20px;">
-  <h1>🗞️ Daily Digest</h1>
-  <h2>{today}</h2>
-  <h3>Top Headlines</h3>
-  <ul>
-    {''.join(f"<li>{line}</li>" for line in headlines)}
-  </ul>
-  <p>More updates soon!</p>
-</body>
-</html>
-"""
+# ============================
+# Section 2: Global News Canada (25 headlines)
+# ============================
+canada_headlines = fetch_feed_titles("https://globalnews.ca/feed/", 25)
 
-# === Write to index.html ===
-with open("index.html", "w", encoding="utf-8") as f:
-    f.write(html_content)
+# ============================
+# Section 3: World Headlines (25 headlines)
+# ============================
+world_headlines = fetch_feed_titles("https://rss.nytimes.com/services/xml/rss/nyt/World.xml", 25)
 
-print("✅ index.html updated.")
+# ============================
+# Section 4: Tech Headlines (25 headlines)
+# ============================
+tech_headlines = fetch_feed_titles("https://www.wired.com/feed/rss", 25)
 
-# === Send Email ===
-sender_email = "cmorrison.66@gmail.com"
-receiver_emails = ["cmorrison.66@gmail.com", "Gerretteatta@gmail.com"]
+# ============================
+# Section 5: Satirical Headlines (20 headlines)
+# ============================
+satire_feeds = [
+    "https://www.theonion.com/rss",
+    "https://reductress.com/feed/",
+    "https://clickhole.com/feed/",
+]
+satire_headlines = []
+for url in satire_feeds:
+    titles = fetch_feed_titles(url, 20)
+    satire_headlines.extend(titles)
+satire_headlines = satire_headlines[:20]
 
-app_password = os.getenv("EMAIL_PASS")
-sender_email = os.getenv("EMAIL_USER")
+# ============================
+# Section 6: Horoscopes (Aries, Cancer, Aquarius)
+# ============================
+horoscope_feed = "https://www.astrology.com/us/feed.ashx?topic=horoscope&sign={sign}"
+signs = {"aries": "", "cancer": "", "aquarius": ""}
+for sign in signs:
+    parsed = feedparser.parse(horoscope_feed.format(sign=sign))
+    if parsed.entries:
+        signs[sign] = parsed.entries[0].summary.strip()
 
+# ============================
+# Section 7: Canucks News (RSS)
+# ============================
+canucks_feed = "https://www.nhl.com/canucks/rss/news"
+canucks_news = fetch_feed_titles(canucks_feed, 10)
 
-msg = EmailMessage()
-msg["Subject"] = f"🗞️ Your Daily Digest – {today}"
-msg["From"] = sender_email
-msg["To"] = ", ".join(receiver_emails)
-msg.set_content("Your daily digest is ready. See the HTML version attached.")
-msg.add_alternative(html_content, subtype="html")
+# ============================
+# Output to File
+# ============================
+downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+today_str = datetime.now().strftime("%Y-%m-%d")
+output_filename = os.path.join(downloads_folder, f"DailyDigest_{today_str}.txt")
 
-try:
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(sender_email, app_password)
-        smtp.send_message(msg)
-    print("✅ Test email sent successfully!")
-except Exception as e:
-    print("❌ Failed to send email:", e)
+with open(output_filename, "w", encoding="utf-8") as f:
+    f.write("=== DAILY DIGEST ===\n")
+    f.write(f"Date: {today_str}\n\n")
+
+    f.write("== FOX NEWS HEADLINES (100) ==\n")
+    for i, title in enumerate(fox_headlines, 1):
+        f.write(f"{i}. {title}\n")
+    f.write("\n")
+
+    f.write("== GLOBAL NEWS CANADA (25) ==\n")
+    for i, title in enumerate(canada_headlines, 1):
+        f.write(f"{i}. {title}\n")
+    f.write("\n")
+
+    f.write("== WORLD HEADLINES (25) ==\n")
+    for i, title in enumerate(world_headlines, 1):
+        f.write(f"{i}. {title}\n")
+    f.write("\n")
+
+    f.write("== TECH HEADLINES (25) ==\n")
+    for i, title in enumerate(tech_headlines, 1):
+        f.write(f"{i}. {title}\n")
+    f.write("\n")
+
+    f.write("== SATIRICAL HEADLINES (20) ==\n")
+    for i, title in enumerate(satire_headlines, 1):
+        f.write(f"{i}. {title}\n")
+    f.write("\n")
+
+    f.write("== HOROSCOPES ==\n")
+    for sign, horoscope in signs.items():
+        f.write(f"{sign.capitalize()}: {horoscope}\n")
+    f.write("\n")
+
+    f.write("== CANUCKS NEWS (10) ==\n")
+    for i, title in enumerate(canucks_news, 1):
+        f.write(f"{i}. {title}\n")
+    f.write("\n")
+
+print(f"✅ Daily Digest script ready to write to {output_filename}")

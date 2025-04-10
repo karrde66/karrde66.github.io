@@ -33,7 +33,7 @@ def fetch_feed_items(feed_url, limit):
 
 def fetch_weather(city):
     try:
-        # Append &m for metric units (Celsius)
+        # Append &m to display metric units, including condition (e.g. "Rain" etc.)
         url = f"https://wttr.in/{city}?format=%C+%t&m"
         response = requests.get(url, timeout=10)
         return f"{city.capitalize()}: {response.text.strip()}"
@@ -60,7 +60,7 @@ def filter_by_keyword(titles, keyword):
 def fetch_market_quotes():
     """
     Fetch market quotes for Nasdaq (^IXIC), QQQ, VTI, Bitcoin (BTC-USD), and XRP (XRP-USD)
-    from Yahoo Finance unofficial API.
+    using Yahoo Finance's unofficial API.
     """
     url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=^IXIC,QQQ,VTI,BTC-USD,XRP-USD"
     try:
@@ -76,6 +76,29 @@ def fetch_market_quotes():
     except Exception:
         return {}
 
+def fetch_daily_joke():
+    """Fetch a dad joke from icanhazdadjoke.com."""
+    try:
+        headers = {"Accept": "application/json"}
+        response = requests.get("https://icanhazdadjoke.com/", headers=headers, timeout=10)
+        data = response.json()
+        return data.get("joke", "No joke available.")
+    except Exception:
+        return "No joke available."
+
+def fetch_daily_quote():
+    """Fetch a random quote from quotable.io."""
+    try:
+        response = requests.get("https://api.quotable.io/random", timeout=10)
+        data = response.json()
+        content = data.get("content", "")
+        author = data.get("author", "")
+        if content:
+            return f'"{content}" – {author}'
+        return "No quote available."
+    except Exception:
+        return "No quote available."
+
 # ----------------------------
 # Date Setup
 # ----------------------------
@@ -83,9 +106,9 @@ today = datetime.now().strftime("%A, %B %d, %Y")
 today_str = datetime.now().strftime("%Y-%m-%d")
 
 # ----------------------------
-# News Feeds Scraping
+# Scrape News Feeds (for "the rest" of the news)
 # ----------------------------
-# Fox News
+# Fox News Headlines (top 5)
 fox_feeds = [
     "https://feeds.foxnews.com/foxnews/latest",
     "https://feeds.foxnews.com/foxnews/politics",
@@ -97,16 +120,16 @@ fox_feeds = [
 ]
 fox_headlines = list({title for url in fox_feeds for title in fetch_feed_titles(url, 100)})[:5]
 
-# Global News Canada
+# Global News Canada (top 5)
 canada_headlines = fetch_feed_titles("https://globalnews.ca/feed/", 5)
 
-# World Headlines (NYT)
+# World Headlines (NYT top 5)
 world_headlines = fetch_feed_titles("https://rss.nytimes.com/services/xml/rss/nyt/World.xml", 5)
 
-# Wired Tech Headlines
+# Wired Tech Headlines (top 5)
 tech_headlines = fetch_feed_titles("https://www.wired.com/feed/rss", 5)
 
-# Satirical Headlines
+# Satirical Headlines (top 5)
 satire_feeds = [
     "https://www.theonion.com/rss",
     "https://reductress.com/feed/",
@@ -114,15 +137,15 @@ satire_feeds = [
 ]
 satire_headlines = list({title for url in satire_feeds for title in fetch_feed_titles(url, 20)})[:5]
 
-# Hockey Writers feed (for hockey headlines)
+# ----------------------------
+# Hockey News from The Hockey Writers
+# ----------------------------
 hockey_items = fetch_feed_items("https://thehockeywriters.com/feed/", 50)
-# For general hockey news (all items)
 hockey_general_items = hockey_items[:5]
-# Filter for Canucks-specific news
 canucks_items = [item for item in hockey_items if "canucks" in item["title"].lower()][:5]
 
 # ----------------------------
-# Horoscopes (live scrape)
+# Horoscopes (live)
 # ----------------------------
 aries = fetch_horoscope("aries")
 cancer = fetch_horoscope("cancer")
@@ -135,51 +158,65 @@ weather_cities = ["vancouver", "victoria", "terrace", "smithers", "hazelton"]
 weather_data = [fetch_weather(city) for city in weather_cities]
 
 # ----------------------------
-# Market Quotes
+# Market Data
 # ----------------------------
 market_quotes = fetch_market_quotes()
 
 # ----------------------------
-# Build Plain Text Digest (fallback)
+# Daily Joke and Daily Quote
+# ----------------------------
+daily_joke = fetch_daily_joke()
+daily_quote = fetch_daily_quote()
+
+# ----------------------------
+# Build Digest Content in Desired Order:
+# 1. Weather
+# 2. Market Data
+# 3. Horoscopes
+# 4. Daily Joke and Daily Quote
+# 5. Hockey News (General and Canucks)
+# 6. The Rest of the News (Fox, Global, World, Tech, Satire)
 # ----------------------------
 plain_lines = [
     f"*{today}*\n",
-    "== Fox News Headlines ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(fox_headlines)),
-    "== Global News Canada ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(canada_headlines)),
-    "== World Headlines (NYT) ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(world_headlines)),
-    "== Tech (Wired) ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(tech_headlines)),
-    "== Satirical Headlines ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(satire_headlines)),
-    "== Hockey Headlines (General) ==\n" + "\n".join(f"{i+1}. {item['title']}" for i, item in enumerate(hockey_general_items)),
-    "== Canucks News ==\n" + "\n".join(f"{i+1}. {item['title']}" for i, item in enumerate(canucks_items)),
-    "== Horoscopes ==\n" + f"Aries: {aries}\n\nCancer: {cancer}\n\nAquarius: {aquarius}",
     "== Weather ==\n" + "\n".join(weather_data),
-    "== Market Data ==\n" + "\n".join(f"{symbol}: {price}" for symbol, price in market_quotes.items()),
+    "\n== Market Data ==\n" + "\n".join(f"{symbol}: {price}" for symbol, price in market_quotes.items()),
+    "\n== Horoscopes ==\n" + f"Aries: {aries}\n\nCancer: {cancer}\n\nAquarius: {aquarius}",
+    "\n== Daily Joke ==\n" + daily_joke,
+    "\n== Daily Quote ==\n" + daily_quote,
+    "\n== Hockey Headlines (General) ==\n" + "\n".join(f"{i+1}. {item['title']}" for i, item in enumerate(hockey_general_items)),
+    "\n== Canucks News ==\n" + "\n".join(f"{i+1}. {item['title']} (Link: {item['link']})" for i, item in enumerate(canucks_items)),
+    "\n== Fox News Headlines ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(fox_headlines)),
+    "\n== Global News Canada ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(canada_headlines)),
+    "\n== World Headlines (NYT) ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(world_headlines)),
+    "\n== Tech (Wired) ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(tech_headlines)),
+    "\n== Satirical Headlines ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(satire_headlines)),
 ]
 plain_digest = "\n\n".join(plain_lines)
 
 # ----------------------------
-# Build HTML Digest (for email)
+# Build HTML Digest
 # ----------------------------
 html_parts = [
     f"<h2>{today}</h2>",
+    "<h3>Weather</h3><ul>" + "".join(f"<li>{w}</li>" for w in weather_data) + "</ul>",
+    "<h3>Market Data</h3><ul>" + "".join(f"<li>{symbol}: {price}</li>" for symbol, price in market_quotes.items()) + "</ul>",
+    "<h3>Horoscopes</h3>" +
+       f"<p>Aries: {aries}</p><p><br>Cancer: {cancer}</p><p><br>Aquarius: {aquarius}</p>",
+    "<h3>Daily Joke</h3><p>" + daily_joke + "</p>",
+    "<h3>Daily Quote</h3><p>" + daily_quote + "</p>",
+    "<h3>Hockey Headlines (General)</h3><ul>" + "".join(f"<li>{item['title']}</li>" for item in hockey_general_items) + "</ul>",
+    "<h3>Canucks News</h3><ul>" + "".join(f"<li><a href='{item['link']}' target='_blank'>{item['title']}</a></li>" for item in canucks_items) + "</ul>",
     "<h3>Fox News Headlines</h3><ul>" + "".join(f"<li>{h}</li>" for h in fox_headlines) + "</ul>",
     "<h3>Global News Canada</h3><ul>" + "".join(f"<li>{h}</li>" for h in canada_headlines) + "</ul>",
     "<h3>World Headlines (NYT)</h3><ul>" + "".join(f"<li>{h}</li>" for h in world_headlines) + "</ul>",
     "<h3>Tech (Wired)</h3><ul>" + "".join(f"<li>{h}</li>" for h in tech_headlines) + "</ul>",
     "<h3>Satirical Headlines</h3><ul>" + "".join(f"<li>{h}</li>" for h in satire_headlines) + "</ul>",
-    "<h3>Hockey Headlines (General)</h3><ul>" + "".join(f"<li>{item['title']}</li>" for item in hockey_general_items) + "</ul>",
-    "<h3>Canucks News</h3><ul>" + "".join(f"<li><a href='{item['link']}' target='_blank'>{item['title']}</a></li>" for item in canucks_items) + "</ul>",
-    "<h3>Horoscopes</h3>" +
-      f"<p>Aries: {aries}</p>" +
-      f"<p><br>Cancer: {cancer}</p>" +
-      f"<p><br>Aquarius: {aquarius}</p>",
-    "<h3>Weather</h3><ul>" + "".join(f"<li>{w}</li>" for w in weather_data) + "</ul>",
-    "<h3>Market Data</h3><ul>" + "".join(f"<li>{symbol}: {price}</li>" for symbol, price in market_quotes.items()) + "</ul>",
 ]
 html_digest = "".join(html_parts)
 
 # ----------------------------
-# Save Plain Text Digest to File (for backup/logging)
+# Save Plain Text Digest to File (optional)
 # ----------------------------
 output_path = Path(f"DailyDigest_{today_str}.txt")
 with open(output_path, "w", encoding="utf-8") as f:
@@ -187,7 +224,7 @@ with open(output_path, "w", encoding="utf-8") as f:
 print(f"✅ Plain text digest saved to {output_path}")
 
 # ----------------------------
-# Email the Digest (embedding digest text directly in the email body)
+# Email the Digest (HTML email with plain text fallback)
 # ----------------------------
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
@@ -197,7 +234,7 @@ msg = EmailMessage()
 msg["Subject"] = f"🗞️ Your Daily Digest – {today}"
 msg["From"] = EMAIL_USER
 msg["To"] = ", ".join(receiver_emails)
-msg.set_content(plain_digest)  # Plain text fallback
+msg.set_content(plain_digest)  # Fallback plain text version
 msg.add_alternative(html_digest, subtype="html")  # HTML version
 
 try:

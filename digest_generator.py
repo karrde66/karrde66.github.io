@@ -36,7 +36,8 @@ def fetch_horoscope(sign):
         return paragraph.text.strip() if paragraph else f"{sign.capitalize()}: Horoscope unavailable"
     except Exception:
         return f"{sign.capitalize()}: Horoscope unavailable"
-
+        
+today = datetime.now().strftime("%A, %B %d, %Y")
 today_str = datetime.now().strftime("%Y-%m-%d")
 today_human = datetime.now().strftime("%A, %B %d, %Y")
 

@@ -7,9 +7,6 @@ from email.message import EmailMessage
 import os
 from pathlib import Path
 
-# ----------------------------
-# Helper Functions
-# ----------------------------
 def fetch_feed_titles(feed_url, limit):
     feed = feedparser.parse(feed_url)
     titles = []
@@ -33,7 +30,6 @@ def fetch_horoscope(sign):
         url = f"https://www.astrology.com/horoscope/daily/{sign}.html"
         response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
-        # We'll take the first paragraph from the horoscope section
         paragraph = soup.find("p")
         return paragraph.text.strip() if paragraph else f"{sign.capitalize()}: Horoscope unavailable"
     except Exception:
@@ -44,7 +40,6 @@ def fetch_horoscope(sign):
 # ----------------------------
 today = datetime.now().strftime("%A, %B %d, %Y")
 today_str = datetime.now().strftime("%Y-%m-%d")
-today_human = today  # same as 'today'
 
 # ----------------------------
 # News Feeds Scraping
@@ -61,9 +56,7 @@ fox_feeds = [
 fox_headlines = list({title for url in fox_feeds for title in fetch_feed_titles(url, 100)})[:100]
 
 canada_headlines = fetch_feed_titles("https://globalnews.ca/feed/", 25)
-
 world_headlines = fetch_feed_titles("https://rss.nytimes.com/services/xml/rss/nyt/World.xml", 25)
-
 tech_headlines = fetch_feed_titles("https://www.wired.com/feed/rss", 25)
 
 satire_feeds = [
@@ -74,27 +67,26 @@ satire_feeds = [
 satire_headlines = list({title for url in satire_feeds for title in fetch_feed_titles(url, 20)})[:20]
 
 nhl_headlines = fetch_feed_titles("https://www.nhl.com/rss/news.xml", 10)
-
 canucks_headlines = fetch_feed_titles("https://www.nhl.com/canucks/rss/news.xml", 5)
 
 # ----------------------------
-# Horoscope (live scrape)
+# Horoscopes (live scrape)
 # ----------------------------
 aries = fetch_horoscope("aries")
 cancer = fetch_horoscope("cancer")
 aquarius = fetch_horoscope("aquarius")
 
 # ----------------------------
-# Weather (for multiple cities)
+# Weather (for selected cities)
 # ----------------------------
 weather_cities = ["vancouver", "victoria", "terrace", "smithers", "hazelton"]
 weather_data = [fetch_weather(city) for city in weather_cities]
 
 # ----------------------------
-# Build Digest Content as Lines
+# Build Digest Content
 # ----------------------------
 lines = [
-    f"*{today_human}*\n",
+    f"*{today}*\n",
     "== Fox News Headlines ==\n",
     *[f"{i+1}. {h}" for i, h in enumerate(fox_headlines)],
     "\n== Global News Canada ==\n",
@@ -115,19 +107,19 @@ lines = [
     *weather_data,
 ]
 
+digest_text = "\n".join(lines)
+
 # ----------------------------
-# Write Digest to File
+# Write Digest to File (for logging/backup)
 # ----------------------------
 output_path = Path(f"DailyDigest_{today_str}.txt")
 with open(output_path, "w", encoding="utf-8") as f:
-    f.write("\n".join(lines))
-
+    f.write(digest_text)
 print(f"✅ Digest saved to {output_path}")
 
 # ----------------------------
-# Email the Digest
+# Email the Digest directly (embed digest text in email body)
 # ----------------------------
-# Make sure your GitHub Actions secrets provide EMAIL_USER and EMAIL_PASS.
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 receiver_emails = ["cmorrison.66@gmail.com", "Gerretteatta@gmail.com"]
@@ -136,17 +128,12 @@ msg = EmailMessage()
 msg["Subject"] = f"🗞️ Your Daily Digest – {today}"
 msg["From"] = EMAIL_USER
 msg["To"] = ", ".join(receiver_emails)
-msg.set_content("Your daily digest is ready. See the attached text file.")
-
-# Attach the digest file content as a plain text attachment
-with open(output_path, "r", encoding="utf-8") as f:
-    digest_content = f.read()
-msg.add_attachment(digest_content, filename=output_path.name)
+msg.set_content(digest_text)  # Embed digest text directly in the email body
 
 try:
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
         smtp.login(EMAIL_USER, EMAIL_PASS)
         smtp.send_message(msg)
-    print("✅ Digest email sent.")
+    print("✅ Digest email sent successfully!")
 except Exception as e:
     print("❌ Failed to send digest email:", e)

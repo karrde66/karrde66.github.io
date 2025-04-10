@@ -93,7 +93,7 @@ digest_text = "\n".join(digest)
 msg = MIMEText(digest_text)
 msg["Subject"] = f"📰 Your Daily Digest – {today_str}"
 msg["From"] = os.environ["EMAIL_USER"]
-msg["To"] = "cmorrison.66@gmail.com, Gerrettetatta@gmail.com"
+msg["To"] = "cmorrison.66@gmail.com"
 
 with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
     server.login(os.environ["EMAIL_USER"], os.environ["EMAIL_PASS"])

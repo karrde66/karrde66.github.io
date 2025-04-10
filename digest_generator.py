@@ -6,12 +6,12 @@ import smtplib
 from email.message import EmailMessage
 import os
 from pathlib import Path
+import json
 
 # ----------------------------
 # Helper Functions
 # ----------------------------
 def fetch_feed_titles(feed_url, limit):
-    """Return a list of headline strings from the specified RSS feed."""
     feed = feedparser.parse(feed_url)
     titles = []
     for entry in feed.entries:
@@ -22,10 +22,6 @@ def fetch_feed_titles(feed_url, limit):
     return titles
 
 def fetch_feed_items(feed_url, limit):
-    """
-    Return a list of dictionaries with 'title' and 'link' from the feed.
-    This is used for the hockey section so we can produce clickable links.
-    """
     feed = feedparser.parse(feed_url)
     items = []
     for entry in feed.entries:
@@ -36,16 +32,15 @@ def fetch_feed_items(feed_url, limit):
     return items
 
 def fetch_weather(city):
-    """Return formatted weather info using wttr.in (in Celsius)."""
     try:
-        url = f"https://wttr.in/{city}?format=%C+%t"
+        # Append &m for metric units (Celsius)
+        url = f"https://wttr.in/{city}?format=%C+%t&m"
         response = requests.get(url, timeout=10)
         return f"{city.capitalize()}: {response.text.strip()}"
     except Exception:
         return f"{city.capitalize()}: Weather unavailable"
 
 def fetch_horoscope(sign):
-    """Return today's horoscope for a given sign scraped from astrology.com."""
     try:
         url = f"https://www.astrology.com/horoscope/daily/{sign}.html"
         response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
@@ -60,8 +55,26 @@ def fetch_horoscope(sign):
         return f"{sign.capitalize()}: Horoscope unavailable"
 
 def filter_by_keyword(titles, keyword):
-    """Filter a list of titles to those containing the given keyword."""
     return [title for title in titles if keyword.lower() in title.lower()]
+
+def fetch_market_quotes():
+    """
+    Fetch market quotes for Nasdaq (^IXIC), QQQ, VTI, Bitcoin (BTC-USD), and XRP (XRP-USD)
+    from Yahoo Finance unofficial API.
+    """
+    url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=^IXIC,QQQ,VTI,BTC-USD,XRP-USD"
+    try:
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        quotes = {}
+        for result in data.get("quoteResponse", {}).get("result", []):
+            symbol = result.get("symbol")
+            price = result.get("regularMarketPrice")
+            if symbol and price is not None:
+                quotes[symbol] = price
+        return quotes
+    except Exception:
+        return {}
 
 # ----------------------------
 # Date Setup
@@ -70,8 +83,9 @@ today = datetime.now().strftime("%A, %B %d, %Y")
 today_str = datetime.now().strftime("%Y-%m-%d")
 
 # ----------------------------
-# News Feeds (Top 5 for each section)
+# News Feeds Scraping
 # ----------------------------
+# Fox News
 fox_feeds = [
     "https://feeds.foxnews.com/foxnews/latest",
     "https://feeds.foxnews.com/foxnews/politics",
@@ -83,21 +97,29 @@ fox_feeds = [
 ]
 fox_headlines = list({title for url in fox_feeds for title in fetch_feed_titles(url, 100)})[:5]
 
+# Global News Canada
 canada_headlines = fetch_feed_titles("https://globalnews.ca/feed/", 5)
+
+# World Headlines (NYT)
 world_headlines = fetch_feed_titles("https://rss.nytimes.com/services/xml/rss/nyt/World.xml", 5)
+
+# Wired Tech Headlines
 tech_headlines = fetch_feed_titles("https://www.wired.com/feed/rss", 5)
-satire_headlines = list({title for url in [
+
+# Satirical Headlines
+satire_feeds = [
     "https://www.theonion.com/rss",
     "https://reductress.com/feed/",
-    "https://clickhole.com/feed/"
-] for title in fetch_feed_titles(url, 20)})[:5]
+    "https://clickhole.com/feed/",
+]
+satire_headlines = list({title for url in satire_feeds for title in fetch_feed_titles(url, 20)})[:5]
 
-# ----------------------------
-# Hockey Headlines from The Hockey Writers (complete set as links)
-# ----------------------------
+# Hockey Writers feed (for hockey headlines)
 hockey_items = fetch_feed_items("https://thehockeywriters.com/feed/", 50)
-# Also filter Canucks news from the hockey items:
-canucks_items = [item for item in hockey_items if "canucks" in item["title"].lower()]
+# For general hockey news (all items)
+hockey_general_items = hockey_items[:5]
+# Filter for Canucks-specific news
+canucks_items = [item for item in hockey_items if "canucks" in item["title"].lower()][:5]
 
 # ----------------------------
 # Horoscopes (live scrape)
@@ -113,6 +135,11 @@ weather_cities = ["vancouver", "victoria", "terrace", "smithers", "hazelton"]
 weather_data = [fetch_weather(city) for city in weather_cities]
 
 # ----------------------------
+# Market Quotes
+# ----------------------------
+market_quotes = fetch_market_quotes()
+
+# ----------------------------
 # Build Plain Text Digest (fallback)
 # ----------------------------
 plain_lines = [
@@ -122,10 +149,11 @@ plain_lines = [
     "== World Headlines (NYT) ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(world_headlines)),
     "== Tech (Wired) ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(tech_headlines)),
     "== Satirical Headlines ==\n" + "\n".join(f"{i+1}. {h}" for i, h in enumerate(satire_headlines)),
-    "== Hockey Headlines (Complete) ==\n" + "\n".join(f"{i+1}. {item['title']}" for i, item in enumerate(hockey_items)),
+    "== Hockey Headlines (General) ==\n" + "\n".join(f"{i+1}. {item['title']}" for i, item in enumerate(hockey_general_items)),
     "== Canucks News ==\n" + "\n".join(f"{i+1}. {item['title']}" for i, item in enumerate(canucks_items)),
     "== Horoscopes ==\n" + f"Aries: {aries}\n\nCancer: {cancer}\n\nAquarius: {aquarius}",
     "== Weather ==\n" + "\n".join(weather_data),
+    "== Market Data ==\n" + "\n".join(f"{symbol}: {price}" for symbol, price in market_quotes.items()),
 ]
 plain_digest = "\n\n".join(plain_lines)
 
@@ -139,18 +167,19 @@ html_parts = [
     "<h3>World Headlines (NYT)</h3><ul>" + "".join(f"<li>{h}</li>" for h in world_headlines) + "</ul>",
     "<h3>Tech (Wired)</h3><ul>" + "".join(f"<li>{h}</li>" for h in tech_headlines) + "</ul>",
     "<h3>Satirical Headlines</h3><ul>" + "".join(f"<li>{h}</li>" for h in satire_headlines) + "</ul>",
-    "<h3>Hockey Headlines (Complete)</h3><ul>" + "".join(f"<li>{item['title']}</li>" for item in hockey_items) + "</ul>",
+    "<h3>Hockey Headlines (General)</h3><ul>" + "".join(f"<li>{item['title']}</li>" for item in hockey_general_items) + "</ul>",
     "<h3>Canucks News</h3><ul>" + "".join(f"<li><a href='{item['link']}' target='_blank'>{item['title']}</a></li>" for item in canucks_items) + "</ul>",
     "<h3>Horoscopes</h3>" +
       f"<p>Aries: {aries}</p>" +
-      f"<p>Cancer: {cancer}</p>" +
-      f"<p>Aquarius: {aquarius}</p>",
+      f"<p><br>Cancer: {cancer}</p>" +
+      f"<p><br>Aquarius: {aquarius}</p>",
     "<h3>Weather</h3><ul>" + "".join(f"<li>{w}</li>" for w in weather_data) + "</ul>",
+    "<h3>Market Data</h3><ul>" + "".join(f"<li>{symbol}: {price}</li>" for symbol, price in market_quotes.items()) + "</ul>",
 ]
 html_digest = "".join(html_parts)
 
 # ----------------------------
-# Save Plain Text Digest to File (for logging/backup)
+# Save Plain Text Digest to File (for backup/logging)
 # ----------------------------
 output_path = Path(f"DailyDigest_{today_str}.txt")
 with open(output_path, "w", encoding="utf-8") as f:
@@ -158,7 +187,7 @@ with open(output_path, "w", encoding="utf-8") as f:
 print(f"✅ Plain text digest saved to {output_path}")
 
 # ----------------------------
-# Email the Digest using HTML email (with plain text fallback)
+# Email the Digest (embedding digest text directly in the email body)
 # ----------------------------
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
@@ -169,7 +198,7 @@ msg["Subject"] = f"🗞️ Your Daily Digest – {today}"
 msg["From"] = EMAIL_USER
 msg["To"] = ", ".join(receiver_emails)
 msg.set_content(plain_digest)  # Plain text fallback
-msg.add_alternative(html_digest, subtype="html")  # HTML version with links for hockey
+msg.add_alternative(html_digest, subtype="html")  # HTML version
 
 try:
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:

@@ -1,4 +1,3 @@
-
 import feedparser
 import requests
 from bs4 import BeautifulSoup
@@ -8,7 +7,9 @@ from email.message import EmailMessage
 import os
 from pathlib import Path
 
-
+# ----------------------------
+# Helper Functions
+# ----------------------------
 def fetch_feed_titles(feed_url, limit):
     feed = feedparser.parse(feed_url)
     titles = []
@@ -22,7 +23,7 @@ def fetch_feed_titles(feed_url, limit):
 def fetch_weather(city):
     try:
         url = f"https://wttr.in/{city}?format=%C+%t"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         return f"{city.capitalize()}: {response.text.strip()}"
     except Exception:
         return f"{city.capitalize()}: Weather unavailable"
@@ -30,18 +31,24 @@ def fetch_weather(city):
 def fetch_horoscope(sign):
     try:
         url = f"https://www.astrology.com/horoscope/daily/{sign}.html"
-        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
+        # We'll take the first paragraph from the horoscope section
         paragraph = soup.find("p")
         return paragraph.text.strip() if paragraph else f"{sign.capitalize()}: Horoscope unavailable"
     except Exception:
         return f"{sign.capitalize()}: Horoscope unavailable"
-        
+
+# ----------------------------
+# Date Setup
+# ----------------------------
 today = datetime.now().strftime("%A, %B %d, %Y")
 today_str = datetime.now().strftime("%Y-%m-%d")
-today_human = datetime.now().strftime("%A, %B %d, %Y")
+today_human = today  # same as 'today'
 
-# --- News Feeds ---
+# ----------------------------
+# News Feeds Scraping
+# ----------------------------
 fox_feeds = [
     "https://feeds.foxnews.com/foxnews/latest",
     "https://feeds.foxnews.com/foxnews/politics",
@@ -52,30 +59,42 @@ fox_feeds = [
     "https://feeds.foxnews.com/foxnews/health",
 ]
 fox_headlines = list({title for url in fox_feeds for title in fetch_feed_titles(url, 100)})[:100]
+
 canada_headlines = fetch_feed_titles("https://globalnews.ca/feed/", 25)
+
 world_headlines = fetch_feed_titles("https://rss.nytimes.com/services/xml/rss/nyt/World.xml", 25)
+
 tech_headlines = fetch_feed_titles("https://www.wired.com/feed/rss", 25)
+
 satire_feeds = [
     "https://www.theonion.com/rss",
     "https://reductress.com/feed/",
     "https://clickhole.com/feed/",
 ]
 satire_headlines = list({title for url in satire_feeds for title in fetch_feed_titles(url, 20)})[:20]
+
 nhl_headlines = fetch_feed_titles("https://www.nhl.com/rss/news.xml", 10)
+
 canucks_headlines = fetch_feed_titles("https://www.nhl.com/canucks/rss/news.xml", 5)
 
-# --- Horoscope ---
+# ----------------------------
+# Horoscope (live scrape)
+# ----------------------------
 aries = fetch_horoscope("aries")
 cancer = fetch_horoscope("cancer")
 aquarius = fetch_horoscope("aquarius")
 
-# --- Weather ---
+# ----------------------------
+# Weather (for multiple cities)
+# ----------------------------
 weather_cities = ["vancouver", "victoria", "terrace", "smithers", "hazelton"]
-weather = [fetch_weather(city) for city in weather_cities]
+weather_data = [fetch_weather(city) for city in weather_cities]
 
-# --- Build Digest ---
+# ----------------------------
+# Build Digest Content as Lines
+# ----------------------------
 lines = [
-    f"*{today_human}*\n\n",
+    f"*{today_human}*\n",
     "== Fox News Headlines ==\n",
     *[f"{i+1}. {h}" for i, h in enumerate(fox_headlines)],
     "\n== Global News Canada ==\n",
@@ -92,35 +111,37 @@ lines = [
     *[f"{i+1}. {h}" for i, h in enumerate(canucks_headlines)],
     "\n== Horoscopes ==\n",
     f"Aries: {aries}\nCancer: {cancer}\nAquarius: {aquarius}\n",
-    "== Weather ==\n",
-    *weather,
+    "\n== Weather ==\n",
+    *weather_data,
 ]
 
+# ----------------------------
+# Write Digest to File
+# ----------------------------
 output_path = Path(f"DailyDigest_{today_str}.txt")
-with open(output_path, "r", encoding="utf-8") as f:
+with open(output_path, "w", encoding="utf-8") as f:
     f.write("\n".join(lines))
 
 print(f"✅ Digest saved to {output_path}")
 
-# === Email the Digest ===
-import smtplib
-from email.message import EmailMessage
-
+# ----------------------------
+# Email the Digest
+# ----------------------------
+# Make sure your GitHub Actions secrets provide EMAIL_USER and EMAIL_PASS.
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
-
 receiver_emails = ["cmorrison.66@gmail.com", "Gerretteatta@gmail.com"]
 
 msg = EmailMessage()
 msg["Subject"] = f"🗞️ Your Daily Digest – {today}"
 msg["From"] = EMAIL_USER
 msg["To"] = ", ".join(receiver_emails)
-msg.set_content("Your daily digest is ready. See the HTML version attached.")
+msg.set_content("Your daily digest is ready. See the attached text file.")
 
-# Attach the content as a plain text file
+# Attach the digest file content as a plain text attachment
 with open(output_path, "r", encoding="utf-8") as f:
     digest_content = f.read()
-msg.add_attachment(digest_content, filename=os.path.basename(output_filename))
+msg.add_attachment(digest_content, filename=output_path.name)
 
 try:
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:

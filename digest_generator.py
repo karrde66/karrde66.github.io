@@ -97,7 +97,7 @@ lines = [
 ]
 
 output_path = Path(f"DailyDigest_{today_str}.txt")
-with open(output_path, "w", encoding="utf-8") as f:
+with open(output_path, "r", encoding="utf-8") as f:
     f.write("\n".join(lines))
 
 print(f"✅ Digest saved to {output_path}")
@@ -118,7 +118,7 @@ msg["To"] = ", ".join(receiver_emails)
 msg.set_content("Your daily digest is ready. See the HTML version attached.")
 
 # Attach the content as a plain text file
-with open(output_filename, "r", encoding="utf-8") as f:
+with open(output_path, "r", encoding="utf-8") as f:
     digest_content = f.read()
 msg.add_attachment(digest_content, filename=os.path.basename(output_filename))
 
